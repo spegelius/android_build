@@ -21,7 +21,10 @@
 
 PRODUCT_PROPERTY_OVERRIDES := \
     ro.config.notification_sound=OnTheHunt.ogg \
-    ro.config.alarm_alert=Alarm_Classic.ogg
+    ro.config.alarm_alert=Alarm_Classic.ogg \
+
+PRODUCT_PROPERTY_OVERRIDES += \
+    persist.sys.root_access=3
 
 PRODUCT_PACKAGES += \
     BasicDreams \
@@ -33,10 +36,15 @@ PRODUCT_PACKAGES += \
     KeyChain \
     PicoTts \
     SharedStorageBackup \
+    Superuser \
     TelephonyProvider \
     UserDictionaryProvider \
     VpnDialogs \
     atrace \
+    mount.exfat \
+    fsck.exfat \
+    mkfs.exfat \
+    mke2fs \
     libandroidfw \
     libaudiopreprocessing \
     libaudioutils \
@@ -72,6 +80,7 @@ PRODUCT_PACKAGES += \
     mdnsd \
     mms-common \
     requestsync \
+    su \
     telephony-common \
     voip-common
 
@@ -91,4 +100,25 @@ ifeq ($(WITH_HOST_DALVIK),true)
         dalvik
 endif
 
+#SUPERUSER_EMBEDDED := true
+SUPERUSER_PACKAGE_PREFIX := com.android.settings.superuser
+
+# CM-specific init file
+PRODUCT_COPY_FILES += \
+    etc/init.local.rc:root/init.cm.rc
+
+# init.d support
+PRODUCT_COPY_FILES += \
+    vendor/spege/prebuilt/common/bin/sysinit:system/bin/sysinit
+
+# World APN list
+PRODUCT_COPY_FILES += \
+    etc/apns-conf.xml:system/etc/apns-conf.xml
+
+# World SPN overrides list
+PRODUCT_COPY_FILES += \
+    etc/spn-conf.xml:system/etc/spn-conf.xml
+
+
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_minimal.mk)
+

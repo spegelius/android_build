@@ -38,6 +38,9 @@ def mangle_default_prop(prop):
   # to be explicit.
   if not prop.get("persist.sys.usb.config"):
     prop.put("persist.sys.usb.config", "none");
+  
+  prop.put("ro.adb.secure", "0")
+  prop.put("ro.secure", "0")
 
 class PropFile:
   def __init__(self, lines):

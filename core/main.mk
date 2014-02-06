@@ -235,6 +235,10 @@ endif
 # Bring in standard build system definitions.
 include $(BUILD_SYSTEM)/definitions.mk
 
+# Bring in Qualcomm helper macros
+include $(BUILD_SYSTEM)/qcom_utils.mk
+
+
 # Bring in dex_preopt.mk
 include $(BUILD_SYSTEM)/dex_preopt.mk
 
@@ -330,6 +334,8 @@ endif # !user_variant
 ifeq (true,$(strip $(enable_target_debugging)))
   # Target is more debuggable and adbd is on by default
   ADDITIONAL_DEFAULT_PROPERTIES += ro.debuggable=1
+  ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
+  ADDITIONAL_DEFAULT_PROPERTIES += ro.secure=0
   # Include the debugging/testing OTA keys in this build.
   INCLUDE_TEST_OTA_KEYS := true
 else # !enable_target_debugging
