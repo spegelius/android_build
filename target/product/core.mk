@@ -105,20 +105,28 @@ SUPERUSER_PACKAGE_PREFIX := com.android.settings.superuser
 
 # CM-specific init file
 PRODUCT_COPY_FILES += \
-    etc/init.local.rc:root/init.cm.rc
+    vendor/aosp/etc/init.local.rc:root/init.cm.rc
 
 # init.d support
 PRODUCT_COPY_FILES += \
-    vendor/spege/prebuilt/common/bin/sysinit:system/bin/sysinit
+    vendor/aosp/etc/init.d/00banner:system/etc/init.d/00banner \
+    vendor/aosp/bin/sysinit:system/bin/sysinit
 
 # World APN list
 PRODUCT_COPY_FILES += \
-    etc/apns-conf.xml:system/etc/apns-conf.xml
+    vendor/aosp/etc/apns-conf.xml:system/etc/apns-conf.xml
 
 # World SPN overrides list
 PRODUCT_COPY_FILES += \
-    etc/spn-conf.xml:system/etc/spn-conf.xml
+    vendor/aosp/etc/spn-conf.xml:system/etc/spn-conf.xml
 
+# userinit support
+#PRODUCT_COPY_FILES += \
+#    vendor/cm/prebuilt/common/etc/init.d/90userinit:system/etc/init.d/90userinit
+
+# SELinux filesystem labels
+PRODUCT_COPY_FILES += \
+    vendor/aosp/etc/init.d/50selinuxrelabel:system/etc/init.d/50selinuxrelabel
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_minimal.mk)
 
