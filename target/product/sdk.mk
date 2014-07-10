@@ -24,13 +24,15 @@ PRODUCT_PACKAGES := \
 	Exchange2 \
 	FusedLocation \
 	Gallery \
+	Keyguard \
 	Music \
 	Mms \
 	OpenWnn \
+	PrintSpooler \
 	libWnnEngDic \
 	libWnnJpnDic \
 	libwnndict \
-	Phone \
+	TeleService \
 	PinyinIME \
 	Protips \
 	SoftKeyboard \
@@ -38,7 +40,6 @@ PRODUCT_PACKAGES := \
 	Launcher2 \
 	Development \
 	DevelopmentSettings \
-	DrmProvider \
 	Fallback \
 	Settings \
 	SdkSetup \
@@ -61,7 +62,8 @@ PRODUCT_PACKAGES := \
 	SmokeTest \
 	SmokeTestApp \
 	rild \
-	LegacyCamera
+	LegacyCamera \
+	Dialer
 
 # Define the host tools and libs that are parts of the SDK.
 -include sdk/build/product_sdk.mk

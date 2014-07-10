@@ -300,6 +300,11 @@ def BuildBootableImage(sourcedir, fs_config_file, info_dict=None):
   else:
     cmd = ["mkbootimg", "--kernel", os.path.join(sourcedir, "kernel")]
 
+    fn = os.path.join(sourcedir, "dt")
+    if os.access(fn, os.F_OK):
+      cmd.append("--dt")
+      cmd.append(fn)
+
     fn = os.path.join(sourcedir, "cmdline")
     if os.access(fn, os.F_OK):
       cmd.append("--cmdline")
@@ -347,8 +352,10 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
   prebuilt_path = os.path.join(prebuilt_dir, prebuilt_name)
   custom_bootimg_mk = os.getenv('MKBOOTIMG')
   if custom_bootimg_mk:
-    bootimage_path = os.path.join(os.getenv('OUT'), "boot.img")
-    os.mkdir(prebuilt_dir)
+    bootimage_path = os.path.join(os.getenv('OUT'), prebuilt_name)
+    print "using custom bootimage makefile %s..." % (custom_bootimg_mk,)
+    if not os.path.isdir(prebuilt_dir):
+        os.mkdir(prebuilt_dir)
     shutil.copyfile(bootimage_path, prebuilt_path)
   if os.path.exists(prebuilt_path):
     print "using prebuilt %s..." % (prebuilt_name,)
@@ -500,6 +507,7 @@ def CheckSize(data, target, info_dict):
   mount_point = "/" + target
 
   if info_dict["fstab"]:
+    if mount_point == "/userdata_extra": mount_point = "/data"
     if mount_point == "/userdata": mount_point = "/data"
     p = info_dict["fstab"][mount_point]
     fs_type = p.fs_type
@@ -978,3 +986,18 @@ def GetTypeAndDevice(mount_point, info):
     return PARTITION_TYPES[fstab[mount_point].fs_type], fstab[mount_point].device
   else:
     return None
+
+
+def ParseCertificate(data):
+  """Parse a PEM-format certificate."""
+  cert = []
+  save = False
+  for line in data.split("\n"):
+    if "--END CERTIFICATE--" in line:
+      break
+    if save:
+      cert.append(line)
+    if "--BEGIN CERTIFICATE--" in line:
+      save = True
+  cert = "".join(cert).decode('base64')
+  return cert

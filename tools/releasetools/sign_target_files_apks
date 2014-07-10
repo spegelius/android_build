@@ -71,8 +71,10 @@ if sys.hexversion < 0x02040000:
   print >> sys.stderr, "Python 2.4 or newer is required."
   sys.exit(1)
 
+import base64
 import cStringIO
 import copy
+import errno
 import os
 import re
 import subprocess
@@ -161,9 +163,43 @@ def SignApks(input_tf_zip, output_tf_zip, apk_key_map, key_passwords):
       print "rewriting %s:" % (info.filename,)
       new_data = RewriteProps(data)
       output_tf_zip.writestr(out_info, new_data)
+    elif info.filename.endswith("mac_permissions.xml"):
+      print "rewriting %s with new keys." % (info.filename,)
+      new_data = ReplaceCerts(data)
+      output_tf_zip.writestr(out_info, new_data)
     else:
       # a non-APK file; copy it verbatim
       output_tf_zip.writestr(out_info, data)
+
+
+def ReplaceCerts(data):
+  """Given a string of data, replace all occurences of a set
+  of X509 certs with a newer set of X509 certs and return
+  the updated data string."""
+  for old, new in OPTIONS.key_map.iteritems():
+    try:
+      if OPTIONS.verbose:
+        print "    Replacing %s.x509.pem with %s.x509.pem" % (old, new)
+      f = open(old + ".x509.pem")
+      old_cert16 = base64.b16encode(common.ParseCertificate(f.read())).lower()
+      f.close()
+      f = open(new + ".x509.pem")
+      new_cert16 = base64.b16encode(common.ParseCertificate(f.read())).lower()
+      f.close()
+      # Only match entire certs.
+      pattern = "\\b"+old_cert16+"\\b"
+      (data, num) = re.subn(pattern, new_cert16, data, flags=re.IGNORECASE)
+      if OPTIONS.verbose:
+        print "    Replaced %d occurence(s) of %s.x509.pem with " \
+            "%s.x509.pem" % (num, old, new)
+    except IOError, e:
+      if (e.errno == errno.ENOENT and not OPTIONS.verbose):
+        continue
+
+      print "    Error accessing %s. %s. Skip replacing %s.x509.pem " \
+          "with %s.x509.pem." % (e.filename, e.strerror, old, new)
+
+  return data
 
 
 def EditTags(tags):
@@ -191,11 +227,19 @@ def RewriteProps(data):
         value = "/".join(pieces)
       elif key == "ro.build.description":
         pieces = value.split(" ")
-        assert len(pieces) == 5
+        #assert len(pieces) == 5
         pieces[-1] = EditTags(pieces[-1])
         value = " ".join(pieces)
       elif key == "ro.build.tags":
         value = EditTags(value)
+      elif key == "ro.build.display.id":
+        # change, eg, "JWR66N dev-keys" to "JWR66N"
+        pieces = value.split()
+        if len(pieces) == 2 and pieces[-1].endswith("-keys"):
+          value = pieces[0]
+        elif len(pieces) > 1 and pieces[-1].endswith("-keys"):
+          pieces[-1] = EditTags(pieces[-1])
+          value = " ".join(pieces)
       line = key + "=" + value
     if line != original_line:
       print "  replace: ", original_line
@@ -249,6 +293,14 @@ def ReplaceOtaKeys(input_tf_zip, output_tf_zip, misc_info):
   if p.returncode != 0:
     raise common.ExternalError("failed to run dumpkeys")
   common.ZipWriteStr(output_tf_zip, "RECOVERY/RAMDISK/res/keys", data)
+
+  # Save the base64 key representation in the update for key-change
+  # validations
+  p = common.Run(["python", "build/tools/getb64key.py", mapped_keys[0]],
+                 stdout=subprocess.PIPE)
+  data, _ = p.communicate()
+  if p.returncode == 0:
+    common.ZipWriteStr(output_tf_zip, "META/releasekey.txt", data)
 
   # SystemUpdateActivity uses the x509.pem version of the keys, but
   # put into a zipfile system/etc/security/otacerts.zip.
