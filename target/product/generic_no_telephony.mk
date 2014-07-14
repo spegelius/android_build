@@ -51,6 +51,7 @@ PRODUCT_PACKAGES := \
 
 PRODUCT_PACKAGES += \
     audio \
+    busybox \
     clatd \
     clatd.conf \
     dhcpcd.conf \

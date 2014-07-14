@@ -27,7 +27,17 @@ PRODUCT_PROPERTY_OVERRIDES := \
     ro.com.android.dataroaming=true
 
 PRODUCT_COPY_FILES := \
-    device/generic/goldfish/data/etc/apns-conf.xml:system/etc/apns-conf.xml
+    vendor/aosp/etc/apns-conf.xml:system/etc/apns-conf.xml \
+    vendor/aosp/etc/spn-conf.xml:system/etc/spn-conf.xml 
+
+ifneq ($(TARGET_BUILD_VARIANT),eng)
+# Enable ADB authentication
+ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=1
+else
+ADDITIONAL_DEFAULT_PROPERTIES += ro.secure=0
+ADDITIONAL_DEFAULT_PROPERTIES += ro.adb.secure=0
+endif
+
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/aosp_base.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/telephony.mk)
