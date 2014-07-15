@@ -24,7 +24,8 @@ PRODUCT_PACKAGES := \
 
 PRODUCT_PROPERTY_OVERRIDES := \
     keyguard.no_require_sim=true \
-    ro.com.android.dataroaming=true
+    ro.com.android.dataroaming=true \
+    persist.sys.root_access=3
 
 PRODUCT_COPY_FILES := \
     vendor/aosp/etc/apns-conf.xml:system/etc/apns-conf.xml \

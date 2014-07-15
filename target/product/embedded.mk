@@ -61,7 +61,12 @@ PRODUCT_PACKAGES += \
     linker \
     logcat \
     logwrapper \
+    mount.exfat \
+    fsck.exfat \
+    mkfs.exfat \
+    mke2fs \
     reboot \
+    su \
     service \
     servicemanager \
     surfaceflinger \
