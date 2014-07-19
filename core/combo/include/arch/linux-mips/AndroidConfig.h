@@ -58,7 +58,7 @@
  * Define if we already have the futex wrapper functions defined. Yes if
  * compiling against bionic.
  */
-#define HAVE_FUTEX_WRAPPERS 1
+//#define HAVE_FUTEX_WRAPPERS 1
 
 /*
  * Process creation model.  Choose one:

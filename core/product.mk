@@ -100,8 +100,8 @@ _product_var_list := \
     PRODUCT_FACTORY_RAMDISK_MODULES \
     PRODUCT_FACTORY_BUNDLE_MODULES \
     PRODUCT_RUNTIMES \
-    PRODUCT_BOOT_JARS
-
+    PRODUCT_BOOT_JARS \
+    PRODUCT_DEX_PREOPT_IMAGE_IN_DATA \
 
 define dump-product
 $(info ==== $(1) ====)\
@@ -255,10 +255,11 @@ _product_stash_var_list += \
 
 
 _product_stash_var_list += \
-	DEFAULT_SYSTEM_DEV_CERTIFICATE
+	DEFAULT_SYSTEM_DEV_CERTIFICATE \
+	WITH_DEXPREOPT
 
 #
-# Stash vaues of the variables in _product_stash_var_list.
+# Stash values of the variables in _product_stash_var_list.
 # $(1): Renamed prefix
 #
 define stash-product-vars

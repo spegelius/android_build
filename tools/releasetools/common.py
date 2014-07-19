@@ -287,18 +287,10 @@ def BuildBootableImage(sourcedir, fs_config_file, info_dict=None):
   assert p1.returncode == 0, "mkbootfs of %s ramdisk failed" % (targetname,)
   assert p2.returncode == 0, "minigzip of %s ramdisk failed" % (targetname,)
 
-  """check if uboot is requested"""
-  fn = os.path.join(sourcedir, "ubootargs")
-  if os.access(fn, os.F_OK):
-    cmd = ["mkimage"]
-    for argument in open(fn).read().rstrip("\n").split(" "):
-      cmd.append(argument)
-    cmd.append("-d")
-    cmd.append(os.path.join(sourcedir, "kernel")+":"+ramdisk_img.name)
-    cmd.append(img.name)
+  # use MKBOOTIMG from environ, or "mkbootimg" if empty or not set
+  mkbootimg = os.getenv('MKBOOTIMG') or "mkbootimg"
 
-  else:
-    cmd = ["mkbootimg", "--kernel", os.path.join(sourcedir, "kernel")]
+  cmd = [mkbootimg, "--kernel", os.path.join(sourcedir, "kernel")]
 
     fn = os.path.join(sourcedir, "dt")
     if os.access(fn, os.F_OK):
@@ -348,15 +340,7 @@ def GetBootableImage(name, prebuilt_name, unpack_dir, tree_subdir,
   'prebuilt_name', otherwise construct it from the source files in
   'unpack_dir'/'tree_subdir'."""
 
-  prebuilt_dir = os.path.join(unpack_dir, "BOOTABLE_IMAGES")
-  prebuilt_path = os.path.join(prebuilt_dir, prebuilt_name)
-  custom_bootimg_mk = os.getenv('MKBOOTIMG')
-  if custom_bootimg_mk:
-    bootimage_path = os.path.join(os.getenv('OUT'), prebuilt_name)
-    print "using custom bootimage makefile %s..." % (custom_bootimg_mk,)
-    if not os.path.isdir(prebuilt_dir):
-        os.mkdir(prebuilt_dir)
-    shutil.copyfile(bootimage_path, prebuilt_path)
+  prebuilt_path = os.path.join(unpack_dir, "BOOTABLE_IMAGES", prebuilt_name)
   if os.path.exists(prebuilt_path):
     print "using prebuilt %s..." % (prebuilt_name,)
     return File.FromLocalFile(name, prebuilt_path)

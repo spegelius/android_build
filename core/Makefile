@@ -1,5 +1,9 @@
 # Put some miscellaneous rules here
 
+# HACK: clear LOCAL_PATH from including last build target before calling
+# intermedites-dir-for
+LOCAL_PATH := $(BUILD_SYSTEM)
+
 # Build system colors
 
 ifneq ($(BUILD_WITH_COLORS),0)
@@ -20,8 +24,6 @@ ifneq "" "$(filter eng.%,$(BUILD_NUMBER))"
 else
   FILE_NAME_TAG := $(BUILD_NUMBER)
 endif
-
-is_tests_build := $(filter tests,$(MAKECMDGOALS))
 
 # -----------------------------------------------------------------
 # Define rules to copy PRODUCT_COPY_FILES defined by the product.
@@ -44,6 +46,7 @@ unique_product_copy_files_destinations :=
 $(foreach cf,$(unique_product_copy_files_pairs), \
     $(eval _src := $(call word-colon,1,$(cf))) \
     $(eval _dest := $(call word-colon,2,$(cf))) \
+    $(call check-product-copy-files,$(cf)) \
     $(if $(filter $(unique_product_copy_files_destinations),$(_dest)), \
         $(info PRODUCT_COPY_FILES $(cf) ignored.), \
         $(eval _fulldest := $(call append-path,$(PRODUCT_OUT),$(_dest))) \
@@ -120,7 +123,14 @@ $(INSTALLED_BUILD_PROP_TARGET): PRIVATE_BUILD_DESC := $(build_desc)
 
 # The string used to uniquely identify this build;  used by the OTA server.
 ifeq (,$(strip $(BUILD_FINGERPRINT)))
-  BUILD_FINGERPRINT := $(PRODUCT_BRAND)/$(TARGET_PRODUCT)/$(TARGET_DEVICE):$(PLATFORM_VERSION)/$(BUILD_ID)/$(BUILD_NUMBER):$(TARGET_BUILD_VARIANT)/$(BUILD_VERSION_TAGS)
+  ifneq ($(filter eng.%,$(BUILD_NUMBER)),)
+    # Trim down BUILD_FINGERPRINT: the default BUILD_NUMBER makes it easily exceed
+    # the Android system property length limit (PROPERTY_VALUE_MAX=92).
+    BF_BUILD_NUMBER := $(USER)$(shell date +%m%d%H%M)
+  else
+    BF_BUILD_NUMBER := $(BUILD_NUMBER)
+  endif
+  BUILD_FINGERPRINT := $(PRODUCT_BRAND)/$(TARGET_PRODUCT)/$(TARGET_DEVICE):$(PLATFORM_VERSION)/$(BUILD_ID)/$(BF_BUILD_NUMBER):$(TARGET_BUILD_VARIANT)/$(BUILD_VERSION_TAGS)
 endif
 ifneq ($(words $(BUILD_FINGERPRINT)),1)
   $(error BUILD_FINGERPRINT cannot contain spaces: "$(BUILD_FINGERPRINT)")
@@ -198,6 +208,9 @@ $(INSTALLED_BUILD_PROP_TARGET): $(BUILDINFO_SH) $(INTERNAL_BUILD_ID_MAKEFILE) $(
 			TARGET_BOOTLOADER_BOARD_NAME="$(TARGET_BOOTLOADER_BOARD_NAME)" \
 			BUILD_FINGERPRINT="$(BUILD_FINGERPRINT)" \
 			TARGET_BOARD_PLATFORM="$(TARGET_BOARD_PLATFORM)" \
+			TARGET_CPU_ABI_LIST="$(TARGET_CPU_ABI_LIST)" \
+			TARGET_CPU_ABI_LIST_32_BIT="$(TARGET_CPU_ABI_LIST_32_BIT)" \
+			TARGET_CPU_ABI_LIST_64_BIT="$(TARGET_CPU_ABI_LIST_64_BIT)" \
 			TARGET_CPU_ABI="$(TARGET_CPU_ABI)" \
 			TARGET_CPU_ABI2="$(TARGET_CPU_ABI2)" \
 			TARGET_AAPT_CHARACTERISTICS="$(TARGET_AAPT_CHARACTERISTICS)" \
@@ -379,6 +392,22 @@ ALL_DEFAULT_INSTALLED_MODULES += $(event_log_tags_file)
 # #################################################################
 # Targets for boot/OS images
 # #################################################################
+ifneq ($(strip $(TARGET_NO_BOOTLOADER)),true)
+  INSTALLED_BOOTLOADER_MODULE := $(PRODUCT_OUT)/bootloader
+  ifeq ($(strip $(TARGET_BOOTLOADER_IS_2ND)),true)
+    INSTALLED_2NDBOOTLOADER_TARGET := $(PRODUCT_OUT)/2ndbootloader
+  else
+    INSTALLED_2NDBOOTLOADER_TARGET :=
+  endif
+else
+  INSTALLED_BOOTLOADER_MODULE :=
+  INSTALLED_2NDBOOTLOADER_TARGET :=
+endif # TARGET_NO_BOOTLOADER
+ifneq ($(strip $(TARGET_NO_KERNEL)),true)
+  INSTALLED_KERNEL_TARGET := $(PRODUCT_OUT)/kernel
+else
+  INSTALLED_KERNEL_TARGET :=
+endif
 
 # -----------------------------------------------------------------
 # the ramdisk
@@ -650,6 +679,7 @@ ifeq (,$(filter true, $(TARGET_NO_KERNEL) $(TARGET_NO_RECOVERY)))
 INSTALLED_RECOVERYIMAGE_TARGET := $(PRODUCT_OUT)/recovery.img
 
 recovery_initrc := $(call include-path-for, recovery)/etc/init.rc
+recovery_sepolicy := $(call intermediates-dir-for,ETC,sepolicy.recovery)/sepolicy.recovery
 recovery_kernel := $(INSTALLED_KERNEL_TARGET) # same as a non-recovery system
 recovery_ramdisk := $(PRODUCT_OUT)/ramdisk-recovery.img
 recovery_build_prop := $(INSTALLED_BUILD_PROP_TARGET)
@@ -724,7 +754,7 @@ $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 		$(INSTALLED_RAMDISK_TARGET) \
 		$(INSTALLED_BOOTIMAGE_TARGET) \
 		$(recovery_binary) \
-		$(recovery_initrc) $(recovery_kernel) \
+		$(recovery_initrc) $(recovery_sepolicy) $(recovery_kernel) \
 		$(INSTALLED_2NDBOOTLOADER_TARGET) \
 		$(recovery_build_prop) $(recovery_resource_deps) \
 		$(recovery_fstab) \
@@ -738,6 +768,8 @@ $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 	@echo -e ${CL_CYN}"Modifying ramdisk contents..."${CL_RST}
 	$(hide) rm -f $(TARGET_RECOVERY_ROOT_OUT)/init*.rc
 	$(hide) cp -f $(recovery_initrc) $(TARGET_RECOVERY_ROOT_OUT)/
+	$(hide) rm -f $(TARGET_RECOVERY_ROOT_OUT)/sepolicy
+	$(hide) cp -f $(recovery_sepolicy) $(TARGET_RECOVERY_ROOT_OUT)/sepolicy
 	$(hide) -cp $(TARGET_ROOT_OUT)/init.recovery.*.rc $(TARGET_RECOVERY_ROOT_OUT)/
 	$(hide) cp -f $(recovery_binary) $(TARGET_RECOVERY_ROOT_OUT)/sbin/
 	mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/system/bin
@@ -795,14 +827,6 @@ INTERNAL_SYSTEMIMAGE_FILES := $(filter $(TARGET_OUT)/%, \
     $(ALL_DEFAULT_INSTALLED_MODULES) \
     $(PDK_FUSION_SYSIMG_FILES) \
     $(RECOVERY_RESOURCE_ZIP))
-
-ifdef is_tests_build
-# We don't want to install tests modules to the system partition
-# when building "tests", because now "tests" may be built in a user, userdebug
-# or eng build variant and we don't want to pollute the system partition.
-# INTERNAL_SYSTEMIMAGE_FILES += $(filter $(TARGET_OUT)/%, \
-#    $(tests_MODULES))
-endif
 
 FULL_SYSTEMIMAGE_DEPS := $(INTERNAL_SYSTEMIMAGE_FILES) $(INTERNAL_USERIMAGES_DEPS)
 # -----------------------------------------------------------------
@@ -979,12 +1003,6 @@ boottarball-nodeps btnod: $(FS_GET_STATS) \
 # data partition image
 INTERNAL_USERDATAIMAGE_FILES := \
     $(filter $(TARGET_OUT_DATA)/%,$(ALL_DEFAULT_INSTALLED_MODULES))
-
-# If we build "tests" at the same time, make sure $(tests_MODULES) get covered.
-ifdef is_tests_build
-INTERNAL_USERDATAIMAGE_FILES += \
-    $(filter $(TARGET_OUT_DATA)/%,$(tests_MODULES))
-endif
 
 # Don't build userdata.img if it's extfs but no partition size
 skip_userdata.img :=
@@ -1328,7 +1346,8 @@ $(INTERNAL_OTA_PACKAGE_TARGET): KEY_CERT_PAIR := $(DEFAULT_KEY_CERT_PAIR)
 
 $(INTERNAL_OTA_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
 	@echo "Package OTA: $@"
-	$(hide) ./build/tools/releasetools/ota_from_target_files -v \
+	$(hide) MKBOOTIMG=$(MKBOOTIMG) \
+	   ./build/tools/releasetools/ota_from_target_files -v \
 	   -p $(HOST_OUT) \
 	   -k $(KEY_CERT_PAIR) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
@@ -1356,7 +1375,8 @@ endif
 
 $(INTERNAL_UPDATE_PACKAGE_TARGET): $(BUILT_TARGET_FILES_PACKAGE) $(DISTTOOLS)
 	@echo "Package: $@"
-	$(hide) ./build/tools/releasetools/img_from_target_files -v \
+	$(hide) MKBOOTIMG=$(MKBOOTIMG) \
+	   ./build/tools/releasetools/img_from_target_files -v \
 	   -s $(extensions) \
 	   -p $(HOST_OUT) \
 	   $(BUILT_TARGET_FILES_PACKAGE) $@
@@ -1368,45 +1388,6 @@ endif    # recovery_fstab is defined
 endif    # TARGET_NO_KERNEL != true
 endif    # TARGET_DEVICE != generic*
 endif    # TARGET_PRODUCT != sdk
-
-ifdef is_tests_build
-# -----------------------------------------------------------------
-# A zip of the tests that are built when running "make tests".
-# This is very similar to BUILT_TARGET_FILES_PACKAGE, but we
-# only grab DATA, and it's called "*-tests-*.zip".
-#
-name := $(TARGET_PRODUCT)
-ifeq ($(TARGET_BUILD_TYPE),debug)
-  name := $(name)_debug
-endif
-name := $(name)-tests-$(FILE_NAME_TAG)
-
-intermediates := $(call intermediates-dir-for,PACKAGING,tests_zip)
-BUILT_TESTS_ZIP_PACKAGE := $(intermediates)/$(name).zip
-$(BUILT_TESTS_ZIP_PACKAGE): intermediates := $(intermediates)
-$(BUILT_TESTS_ZIP_PACKAGE): zip_root := $(intermediates)/$(name)
-
-# Depending on the image dependency files, instead of the image files itself,
-# guarantees that the underlying directories are up-to-date,
-# but don't really build the image.
-$(BUILT_TESTS_ZIP_PACKAGE): \
-    $(INTERNAL_USERDATAIMAGE_FILES) \
-    | $(ACP)
-	@echo -e ${CL_YLW}"Package test files:"${CL_RST} $@"
-	$(hide) rm -rf $@ $(zip_root)
-	$(hide) mkdir -p $(dir $@) $(zip_root)
-	@# Contents of the data image
-	$(hide) $(call package_files-copy-root, \
-		$(TARGET_OUT_DATA),$(zip_root)/DATA)
-	$(hide) (cd $(zip_root) && zip -qry ../$(notdir $@) .)
-
-.PHONY: tests
-tests: $(BUILT_TESTS_ZIP_PACKAGE)
-
-ifneq (,$(filter tests, $(MAKECMDGOALS)))
-  $(call dist-for-goals, tests, $(BUILT_TESTS_ZIP_PACKAGE))
-endif
-endif # is_tests_build
 
 # -----------------------------------------------------------------
 # A zip of the symbols directory.  Keep the full paths to make it
@@ -1440,7 +1421,7 @@ $(APPS_ZIP): $(INSTALLED_SYSTEMIMAGE)
 	@echo -e ${CL_YLW}"Package apps:"${CL_RST}" $@"
 	$(hide) rm -rf $@
 	$(hide) mkdir -p $(dir $@)
-	$(hide) zip -qj $@ $(TARGET_OUT_APPS)/*
+	$(hide) zip -qj $@ $(TARGET_OUT_APPS)/* $(TARGET_OUT_APPS_PRIVILEGED)/*
 
 
 #------------------------------------------------------------------
@@ -1515,7 +1496,7 @@ endif
 # The SDK
 
 # The SDK includes host-specific components, so it belongs under HOST_OUT.
-sdk_dir := $(HOST_OUT)/sdk
+sdk_dir := $(HOST_OUT)/sdk/$(TARGET_PRODUCT)
 
 # Build a name that looks like:
 #
@@ -1530,7 +1511,7 @@ else
   INTERNAL_SDK_HOST_OS_NAME := $(HOST_OS)
 endif
 ifneq ($(HOST_OS),windows)
-  INTERNAL_SDK_HOST_OS_NAME := $(INTERNAL_SDK_HOST_OS_NAME)-$(HOST_ARCH)
+  INTERNAL_SDK_HOST_OS_NAME := $(INTERNAL_SDK_HOST_OS_NAME)-$(SDK_HOST_ARCH)
 endif
 sdk_name := $(sdk_name)_$(INTERNAL_SDK_HOST_OS_NAME)
 
@@ -1553,27 +1534,11 @@ endif
 
 atree_dir := development/build
 
-# sdk/build/tools.atree contains the generic rules, while
-#
-# sdk/build/tools.$(TARGET_ARCH).atree contains target-specific rules
-# the latter is optional.
-#
-sdk_tools_atree_files := sdk/build/tools.atree
-ifneq (,$(strip $(wildcard sdk/build/tools.$(TARGET_ARCH).atree)))
-  sdk_tools_atree_files += sdk/build/tools.$(TARGET_ARCH).atree
-endif
-ifneq (,$(strip $(wildcard sdk/build/tools.$(HOST_OS).atree)))
-  sdk_tools_atree_files += sdk/build/tools.$(HOST_OS).atree
-endif
-ifneq (,$(strip $(wildcard sdk/build/tools.$(HOST_OS)-$(HOST_ARCH).atree)))
-  sdk_tools_atree_files += sdk/build/tools.$(HOST_OS)-$(HOST_ARCH).atree
-endif
 
 sdk_atree_files := \
 	$(atree_dir)/sdk.exclude.atree \
 	$(atree_dir)/sdk.atree \
-	$(atree_dir)/sdk-$(HOST_OS)-$(HOST_ARCH).atree \
-	$(sdk_tools_atree_files)
+	$(atree_dir)/sdk-$(HOST_OS)-$(SDK_HOST_ARCH).atree
 
 # development/build/sdk-android-<abi>.atree is used to differentiate
 # between architecture models (e.g. ARMv5TE versus ARMv7) when copying
@@ -1595,7 +1560,6 @@ deps := \
 	$(INSTALLED_BUILD_PROP_TARGET) \
 	$(ATREE_FILES) \
 	$(atree_dir)/sdk.atree \
-	$(sdk_tools_atree_files) \
 	$(HOST_OUT_EXECUTABLES)/atree \
 	$(HOST_OUT_EXECUTABLES)/line_endings
 
@@ -1638,7 +1602,6 @@ $(INTERNAL_SDK_TARGET): $(deps)
 			-o $(PRIVATE_DIR) && \
 		cp -f $(target_notice_file_txt) \
 				$(PRIVATE_DIR)/system-images/android-$(PLATFORM_VERSION)/$(TARGET_CPU_ABI)/NOTICE.txt && \
-		cp -f $(tools_notice_file_txt) $(PRIVATE_DIR)/tools/NOTICE.txt && \
 		cp -f $(tools_notice_file_txt) $(PRIVATE_DIR)/platform-tools/NOTICE.txt && \
 		HOST_OUT_EXECUTABLES=$(HOST_OUT_EXECUTABLES) HOST_OS=$(HOST_OS) \
 			development/build/tools/sdk_clean.sh $(PRIVATE_DIR) && \
