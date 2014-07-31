@@ -70,7 +70,11 @@ PRODUCT_PACKAGES += \
     service \
     servicemanager \
     surfaceflinger \
-    toolbox
+    toolbox \
+    bash \
+    ebtables \
+    ntfs-3g \
+    vim
 
 # SELinux packages
 PRODUCT_PACKAGES += \
