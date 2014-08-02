@@ -13,8 +13,11 @@ define clang-flags-subst
 endef
 
 
+#CLANG_CONFIG_EXTRA_CFLAGS := \
+#  -D__compiler_offsetof=__builtin_offsetof \
+
 CLANG_CONFIG_EXTRA_CFLAGS := \
-  -D__compiler_offsetof=__builtin_offsetof \
+  -O3 -Qunused-arguments -Wno-unknown-warning-option -D__compiler_offsetof=__builtin_offsetof \
 
 CLANG_CONFIG_UNKNOWN_CFLAGS := \
   -funswitch-loops
