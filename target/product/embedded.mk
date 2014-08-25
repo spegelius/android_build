@@ -74,7 +74,10 @@ PRODUCT_PACKAGES += \
     bash \
     ebtables \
     ntfs-3g \
-    vim
+    vim \
+    mount.exfat \
+    fsck.exfat \
+    mkfs.exfat \
 
 # SELinux packages
 PRODUCT_PACKAGES += \
