@@ -29,18 +29,22 @@ SELINUX_DEFCONFIG := $(TARGET_KERNEL_SELINUX_CONFIG)
 KERNEL_OUT := $(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
 KERNEL_CONFIG := $(KERNEL_OUT)/.config
 
-ifeq ($(BOARD_USES_UBOOT),true)
-	TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot/uImage
-	TARGET_PREBUILT_INT_KERNEL_TYPE := uImage
-else ifeq ($(BOARD_USES_UNCOMPRESSED_BOOT),true)
-	TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot/Image
-	TARGET_PREBUILT_INT_KERNEL_TYPE := Image
-else ifeq ($(BOARD_USES_BZIMAGE),true)
-	TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot/bzImage
-	TARGET_PREBUILT_INT_KERNEL_TYPE := bzImage
+ifneq ($(BOARD_KERNEL_IMAGE_NAME),)
+	TARGET_PREBUILT_INT_KERNEL_TYPE := $(BOARD_KERNEL_IMAGE_NAME)
+	TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot/$(TARGET_PREBUILT_INT_KERNEL_TYPE)
 else
 	TARGET_PREBUILT_INT_KERNEL := $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot/zImage
 	TARGET_PREBUILT_INT_KERNEL_TYPE := zImage
+endif
+
+## Do be discontinued in a future version. Notify builder about target
+## kernel format requirement
+ifeq ($(BOARD_KERNEL_IMAGE_NAME),)
+ifeq ($(BOARD_USES_UBOOT),true)
+        $(error "Please set BOARD_KERNEL_IMAGE_NAME to uImage")
+else ifeq ($(BOARD_USES_UNCOMPRESSED_BOOT),true)
+        $(error "Please set BOARD_KERNEL_IMAGE_NAME to Image")
+endif
 endif
 
 ifeq "$(wildcard $(KERNEL_SRC) )" ""
@@ -102,52 +106,25 @@ else
     endif
 endif
 
-USE_SOMC_BOARD ?= $(shell perl -e '$$somc = "n"; while (<>) { if (/CONFIG_MACH_SONY_.+=y/) { $$somc = "y"; break } } print $$somc;' $(KERNEL_SRC)/arch/$(TARGET_ARCH)/configs/$(KERNEL_DEFCONFIG))
-
-ifeq "$(USE_SOMC_BOARD)" "y"
-DTS_NAMES ?= msm8974 apq8074
-SOMC_BOARD = $(shell echo $(KERNEL_DEFCONFIG) | sed -e "s/cm_//" | sed -e "s/_defconfig//")
-endif
-DTS_NAMES ?= $(shell perl -e 'while (<>) {$$a = $$1 if /CONFIG_ARCH_((?:MSM|QSD|MPQ)[a-zA-Z0-9]+)=y/; $$r = $$1 if /CONFIG_MSM_SOC_REV_(?!NONE)(\w+)=y/; $$arch = $$arch.lc("$$a$$r ") if /CONFIG_ARCH_((?:MSM|QSD|MPQ)[a-zA-Z0-9]+)=y/} print $$arch;' $(KERNEL_CONFIG))
-KERNEL_USE_OF ?= $(shell perl -e '$$of = "n"; while (<>) { if (/CONFIG_USE_OF=y/) { $$of = "y"; break; } } print $$of;' $(KERNEL_SRC)/arch/$(TARGET_ARCH)/configs/$(KERNEL_DEFCONFIG))
-
-ifeq "$(KERNEL_USE_OF)" "y"
-ifeq "$(USE_SOMC_BOARD)" "y"
-DTS_FILES = $(wildcard $(TOP)/$(KERNEL_SRC)/arch/$(TARGET_ARCH)/boot/dts/$(DTS_NAME)*$(SOMC_BOARD).dts)
-else
-DTS_FILES = $(wildcard $(TOP)/$(KERNEL_SRC)/arch/$(TARGET_ARCH)/boot/dts/$(DTS_NAME)*.dts)
-endif
-DTS_FILE = $(lastword $(subst /, ,$(1)))
-DTB_FILE = $(addprefix $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot/,$(patsubst %.dts,%.dtb,$(call DTS_FILE,$(1))))
-ZIMG_FILE = $(addprefix $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot/,$(patsubst %.dts,%-zImage,$(call DTS_FILE,$(1))))
-KERNEL_ZIMG = $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot/zImage
-DTC = $(KERNEL_OUT)/scripts/dtc/dtc
-
-define append-dtb
-mkdir -p $(KERNEL_OUT)/arch/$(TARGET_ARCH)/boot;\
-$(foreach DTS_NAME, $(DTS_NAMES), \
-   $(foreach d, $(DTS_FILES), \
-      $(DTC) -p 1024 -O dtb -o $(call DTB_FILE,$(d)) $(d); \
-      cat $(KERNEL_ZIMG) $(call DTB_FILE,$(d)) > $(call ZIMG_FILE,$(d));))
-endef
-else
-
-define append-dtb
-endef
-endif
-
 ifeq ($(FULL_KERNEL_BUILD),true)
 
 KERNEL_HEADERS_INSTALL := $(KERNEL_OUT)/usr
 KERNEL_MODULES_INSTALL := system
 KERNEL_MODULES_OUT := $(TARGET_OUT)/lib/modules
 
+ifeq ($(KERNEL_TOOLCHAIN),)
+KERNEL_TOOLCHAIN := $(ARM_EABI_TOOLCHAIN)
+endif
+ifeq ($(KERNEL_TOOLCHAIN_PREFIX),)
+KERNEL_TOOLCHAIN_PREFIX := arm-eabi-
+endif
+
 define mv-modules
     mdpath=`find $(KERNEL_MODULES_OUT) -type f -name modules.order`;\
     if [ "$$mdpath" != "" ];then\
         mpath=`dirname $$mdpath`;\
         ko=`find $$mpath/kernel -type f -name *.ko`;\
-        for i in $$ko; do $(TARGET_STRIP) --strip-unneeded $$i;\
+        for i in $$ko; do $(KERNEL_TOOLCHAIN)/$(KERNEL_TOOLCHAIN_PREFIX)strip --strip-unneeded $$i;\
         mv $$i $(KERNEL_MODULES_OUT)/; done;\
     fi
 endef
@@ -161,25 +138,11 @@ endef
 
 ifeq ($(TARGET_ARCH),arm)
     ifneq ($(USE_CCACHE),)
-     # search executable
-      ccache =
-      ifneq ($(strip $(wildcard $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_EXTRA_TAG)/ccache/ccache)),)
-        ccache := $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_EXTRA_TAG)/ccache/ccache
-      else
-        ifneq ($(strip $(wildcard $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache)),)
-          ccache := $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache
-        endif
-      endif
+      ccache := $(ANDROID_BUILD_TOP)/prebuilts/misc/$(HOST_PREBUILT_TAG)/ccache/ccache
+      # Check that the executable is here.
+      ccache := $(strip $(wildcard $(ccache)))
     endif
-    ifneq ($(TARGET_KERNEL_CUSTOM_TOOLCHAIN),)
-        ifeq ($(HOST_OS),darwin)
-            ARM_CROSS_COMPILE:=CROSS_COMPILE="$(ccache) $(ANDROID_BUILD_TOP)/prebuilt/darwin-x86/toolchain/$(TARGET_KERNEL_CUSTOM_TOOLCHAIN)/bin/arm-eabi-"
-        else
-            ARM_CROSS_COMPILE:=CROSS_COMPILE="$(ccache) $(ANDROID_BUILD_TOP)/prebuilt/linux-x86/toolchain/$(TARGET_KERNEL_CUSTOM_TOOLCHAIN)/bin/arm-eabi-"
-        endif
-    else
-        ARM_CROSS_COMPILE:=CROSS_COMPILE="$(ccache) $(ARM_EABI_TOOLCHAIN)/arm-eabi-"
-    endif
+    ARM_CROSS_COMPILE:=CROSS_COMPILE="$(ccache) $(KERNEL_TOOLCHAIN)/$(KERNEL_TOOLCHAIN_PREFIX)"
     ccache = 
 endif
 
@@ -203,6 +166,7 @@ $(KERNEL_OUT)/piggy : $(TARGET_PREBUILT_INT_KERNEL)
 
 TARGET_KERNEL_BINARIES: $(KERNEL_OUT) $(KERNEL_CONFIG) $(KERNEL_HEADERS_INSTALL)
 	$(MAKE) $(MAKE_FLAGS) -C $(KERNEL_SRC) O=$(KERNEL_OUT) ARCH=$(TARGET_ARCH) $(ARM_CROSS_COMPILE) $(TARGET_PREBUILT_INT_KERNEL_TYPE)
+	-$(MAKE) $(MAKE_FLAGS) -C $(KERNEL_SRC) O=$(KERNEL_OUT) ARCH=$(TARGET_ARCH) $(ARM_CROSS_COMPILE) dtbs
 	-$(MAKE) $(MAKE_FLAGS) -C $(KERNEL_SRC) O=$(KERNEL_OUT) ARCH=$(TARGET_ARCH) $(ARM_CROSS_COMPILE) modules
 	-$(MAKE) $(MAKE_FLAGS) -C $(KERNEL_SRC) O=$(KERNEL_OUT) INSTALL_MOD_PATH=../../$(KERNEL_MODULES_INSTALL) ARCH=$(TARGET_ARCH) $(ARM_CROSS_COMPILE) modules_install
 	$(mv-modules)
@@ -213,7 +177,6 @@ $(TARGET_KERNEL_MODULES): TARGET_KERNEL_BINARIES
 $(TARGET_PREBUILT_INT_KERNEL): $(TARGET_KERNEL_MODULES)
 	$(mv-modules)
 	$(clean-module-folder)
-	$(append-dtb)
 
 $(KERNEL_HEADERS_INSTALL): $(KERNEL_OUT) $(KERNEL_CONFIG)
 	$(MAKE) $(MAKE_FLAGS) -C $(KERNEL_SRC) O=$(KERNEL_OUT) ARCH=$(TARGET_ARCH) $(ARM_CROSS_COMPILE) headers_install

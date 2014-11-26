@@ -23,62 +23,88 @@ PRODUCT_DEVICE := generic
 PRODUCT_NAME := core
 
 PRODUCT_PACKAGES += \
-    ApplicationsProvider \
     BackupRestoreConfirmation \
     DownloadProvider \
-    DownloadProviderUi \
     HTMLViewer \
     MediaProvider \
     PackageInstaller \
     SettingsProvider \
     Shell \
-    apache-xml \
-    bouncycastle \
+    bcc \
     bu \
-    cacerts \
+    com.android.future.usb.accessory \
     com.android.location.provider \
     com.android.location.provider.xml \
-    core \
-    core-junit \
-    dalvikvm \
-    dexdeps \
-    dexdump \
-    dexlist \
-    dexopt \
-    dmtracedump \
+    com.android.media.remotedisplay \
+    com.android.media.remotedisplay.xml \
+    com.android.mediadrm.signer \
+    com.android.mediadrm.signer.xml \
     drmserver \
-    dx \
-    ext \
+    ethernet-service \
     framework-res \
-    hprof-conv \
-    icu.dat \
+    idmap \
     installd \
+    ims-common \
     ip \
     ip-up-vpn \
     ip6tables \
     iptables \
     keystore \
     keystore.default \
+    libbcc \
     libOpenMAXAL \
     libOpenSLES \
-    libcrypto \
     libdownmix \
-    libdvm \
     libdrmframework \
     libdrmframework_jni \
-    libexpat \
     libfilterfw \
-    libicui18n \
-    libicuuc \
-    libjavacore \
-    libnativehelper \
+    libkeystore \
     libsqlite_jni \
-    libssl \
     libwilhelm \
-    libz \
+    logd \
     make_ext4fs \
+    e2fsck \
+    resize2fs \
+    mms-common \
     screencap \
     sensorservice \
-    uiautomator
+    telephony-common \
+    uiautomator \
+    uncrypt \
+    voip-common \
+    webview \
+    wifi-service
+
+PRODUCT_COPY_FILES += \
+    frameworks/native/data/etc/android.software.webview.xml:system/etc/permissions/android.software.webview.xml
+
+# The order of PRODUCT_BOOT_JARS matters.
+PRODUCT_BOOT_JARS := \
+    core-libart \
+    conscrypt \
+    okhttp \
+    core-junit \
+    bouncycastle \
+    ext \
+    framework \
+    telephony-common \
+    voip-common \
+    ims-common \
+    mms-common \
+    android.policy \
+    apache-xml \
+
+# The order of PRODUCT_SYSTEM_SERVER_JARS matters.
+PRODUCT_SYSTEM_SERVER_JARS := \
+    services \
+    ethernet-service \
+    wifi-service
+
+PRODUCT_RUNTIMES := runtime_libart_default
+
+PRODUCT_DEFAULT_PROPERTY_OVERRIDES += \
+    ro.zygote=zygote32
+PRODUCT_COPY_FILES += \
+    system/core/rootdir/init.zygote32.rc:root/init.zygote32.rc
 
 $(call inherit-product, $(SRC_TARGET_DIR)/product/base.mk)

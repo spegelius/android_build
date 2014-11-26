@@ -1,12 +1,15 @@
 # Board platforms lists to be used for
 # TARGET_BOARD_PLATFORM specific featurization
-QCOM_BOARD_PLATFORMS := msm7x27
-QCOM_BOARD_PLATFORMS += msm7x27a
 QCOM_BOARD_PLATFORMS += msm7x30
-QCOM_BOARD_PLATFORMS += qsd8k
+QCOM_BOARD_PLATFORMS += msm8226
+QCOM_BOARD_PLATFORMS += msm8610
 QCOM_BOARD_PLATFORMS += msm8660
+QCOM_BOARD_PLATFORMS += msm8916
 QCOM_BOARD_PLATFORMS += msm8960
 QCOM_BOARD_PLATFORMS += msm8974
+QCOM_BOARD_PLATFORMS += mpq8092
+QCOM_BOARD_PLATFORMS += msm_bronze
+QCOM_BOARD_PLATFORMS += apq8084
 
 MSM7K_BOARD_PLATFORMS := msm7x30
 MSM7K_BOARD_PLATFORMS += msm7x27
@@ -96,7 +99,7 @@ endef
 # $(call get-vendor-board-platforms,v)
 # returns list of board platforms for vendor v
 define get-vendor-board-platforms
-$($(1)_BOARD_PLATFORMS)
+$(if $(call match-word,$(BOARD_USES_$(1)_HARDWARE),true),$($(1)_BOARD_PLATFORMS))
 endef
 
 # $(call is-board-platform,bp)

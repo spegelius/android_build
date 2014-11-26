@@ -20,23 +20,25 @@
 PRODUCT_PACKAGES += \
     adb \
     adbd \
+    atrace \
     bootanimation \
     debuggerd \
+    debuggerd64 \
     dumpstate \
     dumpsys \
     gralloc.default \
     gzip \
+    healthd \
     init \
-    input \
+    init.environ.rc \
+    init.rc \
     libEGL \
     libETC1 \
     libFFTEm \
-    libGLES_android \
     libGLESv1_CM \
     libGLESv2 \
     libbinder \
     libc \
-    libctest \
     libcutils \
     libdl \
     libgui \
@@ -52,26 +54,35 @@ PRODUCT_PACKAGES += \
     libsurfaceflinger \
     libsurfaceflinger_ddmconnection \
     libsysutils \
-    libthread_db \
     libui \
     libutils \
     linker \
+    linker64 \
+    lmkd \
     logcat \
     logwrapper \
+    mkshrc \
+    reboot \
     service \
     servicemanager \
+    sh \
     surfaceflinger \
-    toolbox
+    toolbox \
+    libsigchain
 
 # SELinux packages
 PRODUCT_PACKAGES += \
-    auditd \
     sepolicy \
     file_contexts \
     seapp_contexts \
     property_contexts \
-    mac_permissions.xml
+    mac_permissions.xml \
+    selinux_version \
+    service_contexts
+
 
 PRODUCT_COPY_FILES += \
     system/core/rootdir/init.usb.rc:root/init.usb.rc \
     system/core/rootdir/init.trace.rc:root/init.trace.rc \
+    system/core/rootdir/ueventd.rc:root/ueventd.rc \
+    system/core/rootdir/etc/hosts:system/etc/hosts
